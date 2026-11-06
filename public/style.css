@@ -351,6 +351,34 @@ body {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.link-btn:hover {
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.section-title-box {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.section-title-box:hover {
+  opacity: 0.9;
+  transform: translateX(2px);
+}
+
+.section-title-box:hover h2 {
+  color: #a5b4fc;
+}
+
+.load-more-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 28px;
+  margin-bottom: 20px;
 }
 
 /* Anime Grid */

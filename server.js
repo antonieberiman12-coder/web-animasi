@@ -85,6 +85,28 @@ app.get('/api/anime-list', async (req, res) => {
   }
 });
 
+// 1c. Ongoing Anime with pagination
+app.get('/api/ongoing', async (req, res) => {
+  const page = Math.min(1000, Math.max(1, parseInt(req.query.page, 10) || 1));
+  try {
+    const data = await scraper.getOngoingAnime(page);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 1d. Completed Anime with pagination
+app.get('/api/completed', async (req, res) => {
+  const page = Math.min(1000, Math.max(1, parseInt(req.query.page, 10) || 1));
+  try {
+    const data = await scraper.getCompletedAnime(page);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 2. Search Anime
 app.get('/api/search', async (req, res) => {
   const query = req.query.q;

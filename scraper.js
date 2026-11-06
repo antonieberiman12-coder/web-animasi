@@ -363,6 +363,109 @@ async function getAllAnimeList() {
   return { groups, totalCount };
 }
 
+// Cache for ongoing & completed pages
+const listingCache = new Map();
+
+// 8. Get Ongoing Anime with pagination
+async function getOngoingAnime(page = 1) {
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const cacheKey = `ongoing_${pageNum}`;
+  const now = Date.now();
+  const cached = listingCache.get(cacheKey);
+  if (cached && now < cached.expiry) {
+    return cached.data;
+  }
+
+  const endpoint = pageNum === 1 ? '/ongoing-anime/' : `/ongoing-anime/page/${pageNum}/`;
+  const res = await client.get(endpoint);
+  const $ = cheerio.load(res.data);
+
+  const animeList = [];
+  $('.venz ul li').each((_, el) => {
+    const title = $(el).find('h2.jdlflm').text().trim() || $(el).find('a').text().trim();
+    const link = $(el).find('a').attr('href');
+    const thumb = $(el).find('img').attr('src');
+    const episode = $(el).find('.epz').text().trim();
+    const date = $(el).find('.newnime').text().trim() || $(el).find('.epztipe').text().trim();
+
+    if (title && link) {
+      animeList.push({ title, link, thumb, episode, date, status: 'Ongoing' });
+    }
+  });
+
+  let maxPage = pageNum;
+  $('.pagination .page-numbers, .pagenav .page-numbers').each((_, el) => {
+    const num = parseInt($(el).text().trim(), 10);
+    if (!isNaN(num) && num > maxPage) {
+      maxPage = num;
+    }
+  });
+
+  const data = {
+    animeList,
+    currentPage: pageNum,
+    maxPage,
+    hasNextPage: pageNum < maxPage
+  };
+
+  if (listingCache.size > 100) {
+    const oldest = listingCache.keys().next().value;
+    listingCache.delete(oldest);
+  }
+  listingCache.set(cacheKey, { data, expiry: now + (10 * 60 * 1000) });
+  return data;
+}
+
+// 9. Get Completed Anime with pagination
+async function getCompletedAnime(page = 1) {
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const cacheKey = `completed_${pageNum}`;
+  const now = Date.now();
+  const cached = listingCache.get(cacheKey);
+  if (cached && now < cached.expiry) {
+    return cached.data;
+  }
+
+  const endpoint = pageNum === 1 ? '/complete-anime/' : `/complete-anime/page/${pageNum}/`;
+  const res = await client.get(endpoint);
+  const $ = cheerio.load(res.data);
+
+  const animeList = [];
+  $('.venz ul li').each((_, el) => {
+    const title = $(el).find('h2.jdlflm').text().trim() || $(el).find('a').text().trim();
+    const link = $(el).find('a').attr('href');
+    const thumb = $(el).find('img').attr('src');
+    const episode = $(el).find('.epz').text().trim();
+    const date = $(el).find('.newnime').text().trim() || $(el).find('.epztipe').text().trim();
+
+    if (title && link) {
+      animeList.push({ title, link, thumb, episode, date, status: 'Completed' });
+    }
+  });
+
+  let maxPage = pageNum;
+  $('.pagination .page-numbers, .pagenav .page-numbers').each((_, el) => {
+    const num = parseInt($(el).text().trim(), 10);
+    if (!isNaN(num) && num > maxPage) {
+      maxPage = num;
+    }
+  });
+
+  const data = {
+    animeList,
+    currentPage: pageNum,
+    maxPage,
+    hasNextPage: pageNum < maxPage
+  };
+
+  if (listingCache.size > 100) {
+    const oldest = listingCache.keys().next().value;
+    listingCache.delete(oldest);
+  }
+  listingCache.set(cacheKey, { data, expiry: now + (15 * 60 * 1000) });
+  return data;
+}
+
 module.exports = {
   getHome,
   searchAnime,
@@ -370,5 +473,7 @@ module.exports = {
   getEpisodeDetail,
   resolveMirror,
   extractDirectVideo,
-  getAllAnimeList
+  getAllAnimeList,
+  getOngoingAnime,
+  getCompletedAnime
 };

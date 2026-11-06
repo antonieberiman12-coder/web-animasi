@@ -33,9 +33,17 @@
           <span class="tab-icon">🏠</span>
           <span class="tab-label">Beranda</span>
         </button>
+        <button id="nav-btn-ongoing" class="nav-tab" type="button">
+          <span class="tab-icon">⚡</span>
+          <span class="tab-label">Ongoing</span>
+        </button>
+        <button id="nav-btn-completed" class="nav-tab" type="button">
+          <span class="tab-icon">🏁</span>
+          <span class="tab-label">Tamat</span>
+        </button>
         <button id="nav-btn-all" class="nav-tab" type="button">
           <span class="tab-icon">📚</span>
-          <span class="tab-label">Semua Anime (A-Z)</span>
+          <span class="tab-label">Semua (A-Z)</span>
           <span class="badge-count" id="header-catalog-badge">1.900+</span>
         </button>
       </nav>
@@ -181,8 +189,11 @@
       <!-- Ongoing Anime Section -->
       <div class="anime-section">
         <div class="section-header">
-          <h2>Anime Sedang Tayang (Ongoing)</h2>
-          <span class="sub-label">Update Otakudesu Terbaru</span>
+          <div class="section-title-box" id="header-ongoing-click" style="cursor: pointer;">
+            <h2>Anime Sedang Tayang (Ongoing)</h2>
+            <span class="sub-label">Sentuh untuk lihat seluruh ongoing</span>
+          </div>
+          <button id="btn-see-all-ongoing" class="link-btn" type="button">Lihat Semua Ongoing &raquo;</button>
         </div>
         <div id="ongoing-grid" class="anime-grid">
           <div class="grid-skeleton"></div>
@@ -195,8 +206,11 @@
       <!-- Completed Anime Section -->
       <div class="anime-section">
         <div class="section-header">
-          <h2>Anime Tamat (Completed)</h2>
-          <span class="sub-label">Rekomendasi Terbaik</span>
+          <div class="section-title-box" id="header-completed-click" style="cursor: pointer;">
+            <h2>Anime Tamat (Completed)</h2>
+            <span class="sub-label">Sentuh untuk lihat seluruh tamat</span>
+          </div>
+          <button id="btn-see-all-completed" class="link-btn" type="button">Lihat Semua Tamat &raquo;</button>
         </div>
         <div id="completed-grid" class="anime-grid">
           <div class="grid-skeleton"></div>
@@ -204,6 +218,35 @@
           <div class="grid-skeleton"></div>
           <div class="grid-skeleton"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- Dedicated Listing View (For All Ongoing & All Completed Anime) -->
+    <section id="listing-view" class="view-section hidden">
+      <div class="catalog-header-card">
+        <div class="catalog-header-top">
+          <div>
+            <div class="catalog-badge" id="listing-badge">Katalog Kategori</div>
+            <h2 class="catalog-title" id="listing-title">Daftar Anime</h2>
+            <p class="catalog-desc" id="listing-desc">Memuat koleksi anime lengkap...</p>
+          </div>
+          <button id="btn-refresh-listing" class="btn-refresh" type="button" title="Segarkan">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+            Segarkan
+          </button>
+        </div>
+      </div>
+
+      <!-- Listing Anime Grid -->
+      <div id="listing-grid" class="anime-grid">
+        <!-- Rendered via JS -->
+      </div>
+
+      <!-- Load More / Next Page -->
+      <div class="load-more-wrap" id="listing-load-more-wrap">
+        <button id="btn-load-more" class="btn-primary" type="button">
+          ▼ Muat Halaman Berikutnya (<span id="next-page-label">Halaman 2</span>)
+        </button>
       </div>
     </section>
 
@@ -261,9 +304,17 @@
       <span class="mob-tab-icon">🏠</span>
       <span class="mob-tab-label">Beranda</span>
     </button>
+    <button id="mob-nav-ongoing" class="mob-tab" type="button">
+      <span class="mob-tab-icon">⚡</span>
+      <span class="mob-tab-label">Ongoing</span>
+    </button>
+    <button id="mob-nav-completed" class="mob-tab" type="button">
+      <span class="mob-tab-icon">🏁</span>
+      <span class="mob-tab-label">Tamat</span>
+    </button>
     <button id="mob-nav-all" class="mob-tab" type="button">
       <span class="mob-tab-icon">📚</span>
-      <span class="mob-tab-label">Semua Anime</span>
+      <span class="mob-tab-label">Semua A-Z</span>
     </button>
     <button id="mob-nav-search" class="mob-tab" type="button">
       <span class="mob-tab-icon">🔍</span>

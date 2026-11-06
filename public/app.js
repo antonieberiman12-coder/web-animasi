@@ -49,14 +49,41 @@ function escapeHtml(str) {
 // Elements
 const homeView = document.getElementById('home-view');
 const allAnimeView = document.getElementById('all-anime-view');
+const listingView = document.getElementById('listing-view');
 const detailView = document.getElementById('detail-view');
 const playerView = document.getElementById('player-view');
 
 const navBtnHome = document.getElementById('nav-btn-home');
+const navBtnOngoing = document.getElementById('nav-btn-ongoing');
+const navBtnCompleted = document.getElementById('nav-btn-completed');
 const navBtnAll = document.getElementById('nav-btn-all');
+
 const mobNavHome = document.getElementById('mob-nav-home');
+const mobNavOngoing = document.getElementById('mob-nav-ongoing');
+const mobNavCompleted = document.getElementById('mob-nav-completed');
 const mobNavAll = document.getElementById('mob-nav-all');
 const mobNavSearch = document.getElementById('mob-nav-search');
+
+const listingBadge = document.getElementById('listing-badge');
+const listingTitle = document.getElementById('listing-title');
+const listingDesc = document.getElementById('listing-desc');
+const listingGrid = document.getElementById('listing-grid');
+const listingLoadMoreWrap = document.getElementById('listing-load-more-wrap');
+const btnLoadMore = document.getElementById('btn-load-more');
+const nextPageLabel = document.getElementById('next-page-label');
+const btnRefreshListing = document.getElementById('btn-refresh-listing');
+
+const btnSeeAllOngoing = document.getElementById('btn-see-all-ongoing');
+const btnSeeAllCompleted = document.getElementById('btn-see-all-completed');
+const headerOngoingClick = document.getElementById('header-ongoing-click');
+const headerCompletedClick = document.getElementById('header-completed-click');
+
+// Listing state
+let currentListingType = 'ongoing'; // 'ongoing' | 'completed'
+let listingCurrentPage = 1;
+let listingMaxPage = 1;
+let listingItems = [];
+let isLoadingMore = false;
 
 const catalogContent = document.getElementById('catalog-content');
 const alphabetNav = document.getElementById('alphabet-nav');
@@ -124,16 +151,107 @@ function showView(view) {
 
   homeView.classList.toggle('hidden', view !== 'home');
   allAnimeView.classList.toggle('hidden', view !== 'all-anime');
+  listingView.classList.toggle('hidden', view !== 'listing');
   detailView.classList.toggle('hidden', view !== 'detail');
   playerView.classList.toggle('hidden', view !== 'player');
 
   // Sync tab active states
+  const isOngoingTab = (view === 'listing' && currentListingType === 'ongoing');
+  const isCompletedTab = (view === 'listing' && currentListingType === 'completed');
+
   if (navBtnHome) navBtnHome.classList.toggle('active', view === 'home');
+  if (navBtnOngoing) navBtnOngoing.classList.toggle('active', isOngoingTab);
+  if (navBtnCompleted) navBtnCompleted.classList.toggle('active', isCompletedTab);
   if (navBtnAll) navBtnAll.classList.toggle('active', view === 'all-anime');
+
   if (mobNavHome) mobNavHome.classList.toggle('active', view === 'home');
+  if (mobNavOngoing) mobNavOngoing.classList.toggle('active', isOngoingTab);
+  if (mobNavCompleted) mobNavCompleted.classList.toggle('active', isCompletedTab);
   if (mobNavAll) mobNavAll.classList.toggle('active', view === 'all-anime');
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// 1c. Open Listing View (Ongoing / Completed)
+function openListingView(type, page = 1) {
+  currentListingType = type;
+  showView('listing');
+
+  if (type === 'ongoing') {
+    listingBadge.textContent = '⚡ Anime Sedang Tayang';
+    listingTitle.textContent = 'Seluruh Anime Ongoing';
+    listingDesc.textContent = 'Daftar lengkap seluruh anime yang sedang aktif tayang dan rilis episode terbaru tiap minggu di Otakudesu.';
+  } else {
+    listingBadge.textContent = '🏁 Anime Selesai Tayang';
+    listingTitle.textContent = 'Seluruh Anime Tamat (Completed)';
+    listingDesc.textContent = 'Koleksi lengkap seluruh anime yang sudah tamat dari season awal hingga akhir di Otakudesu.';
+  }
+
+  fetchListing(type, page, false);
+}
+
+async function fetchListing(type, page = 1, append = false) {
+  if (isLoadingMore) return;
+  isLoadingMore = true;
+
+  if (btnLoadMore) {
+    btnLoadMore.disabled = true;
+    btnLoadMore.innerHTML = `<span>Memuat halaman ${page}...</span>`;
+  }
+
+  if (!append) {
+    listingGrid.innerHTML = `
+      <div class="grid-skeleton"></div>
+      <div class="grid-skeleton"></div>
+      <div class="grid-skeleton"></div>
+      <div class="grid-skeleton"></div>
+    `;
+    listingItems = [];
+    listingLoadMoreWrap.classList.add('hidden');
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/${type}?page=${page}`);
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+
+    listingCurrentPage = json.data.currentPage;
+    listingMaxPage = json.data.maxPage;
+
+    if (append) {
+      listingItems.push(...(json.data.animeList || []));
+    } else {
+      listingItems = json.data.animeList || [];
+    }
+
+    renderAnimeCards(listingItems, listingGrid, type === 'ongoing' ? 'Ongoing' : 'Tamat');
+
+    // Handle Load More
+    if (json.data.hasNextPage) {
+      listingLoadMoreWrap.classList.remove('hidden');
+      if (btnLoadMore) {
+        btnLoadMore.disabled = false;
+        btnLoadMore.innerHTML = `▼ Muat Halaman Berikutnya (Halaman ${listingCurrentPage + 1} dari ${listingMaxPage})`;
+      }
+    } else {
+      listingLoadMoreWrap.classList.add('hidden');
+      showToast(`Sudah menampilkan seluruh anime ${type === 'ongoing' ? 'ongoing' : 'tamat'} (Total ${listingItems.length} anime)`);
+    }
+
+  } catch (err) {
+    console.error('Error fetching listing:', err);
+    if (!append) {
+      listingGrid.innerHTML = `<p class="error-text">Gagal memuat anime: ${err.message}</p>`;
+    } else {
+      showToast('Gagal memuat halaman berikutnya: ' + err.message);
+    }
+    if (btnLoadMore) {
+      btnLoadMore.disabled = false;
+      btnLoadMore.textContent = 'Coba Lagi';
+    }
+  } finally {
+    isLoadingMore = false;
+  }
 }
 
 // 1. Fetch & Render Home Page
@@ -311,17 +429,17 @@ function renderAnimeCards(items, container, defaultBadge) {
   }
 
   container.innerHTML = items.map(anime => `
-    <div class="anime-card" data-url="${anime.link}">
+    <div class="anime-card" data-url="${escapeHtml(anime.link)}">
       <div class="poster-wrap">
-        <img src="${anime.thumb || 'https://via.placeholder.com/300x400'}" alt="${anime.title}" loading="lazy">
-        <span class="poster-badge">${anime.episode || defaultBadge}</span>
-        ${anime.rating ? `<span class="poster-rating">★ ${anime.rating}</span>` : ''}
+        <img src="${escapeHtml(anime.thumb) || 'https://via.placeholder.com/300x400'}" alt="${escapeHtml(anime.title)}" loading="lazy">
+        <span class="poster-badge">${escapeHtml(anime.episode || defaultBadge)}</span>
+        ${anime.rating ? `<span class="poster-rating">★ ${escapeHtml(anime.rating)}</span>` : ''}
       </div>
       <div class="card-info">
-        <h3 class="card-title">${anime.title}</h3>
+        <h3 class="card-title">${escapeHtml(anime.title)}</h3>
         <div class="card-meta">
-          <span>${anime.date || ''}</span>
-          ${anime.status ? `<span>${anime.status}</span>` : ''}
+          <span>${escapeHtml(anime.date || '')}</span>
+          ${anime.status ? `<span>${escapeHtml(anime.status)}</span>` : ''}
         </div>
       </div>
     </div>
@@ -587,6 +705,16 @@ if (navBtnHome) {
     showView('home');
   });
 }
+if (navBtnOngoing) {
+  navBtnOngoing.addEventListener('click', () => {
+    openListingView('ongoing');
+  });
+}
+if (navBtnCompleted) {
+  navBtnCompleted.addEventListener('click', () => {
+    openListingView('completed');
+  });
+}
 if (navBtnAll) {
   navBtnAll.addEventListener('click', () => {
     showView('all-anime');
@@ -600,10 +728,59 @@ if (mobNavHome) {
     showView('home');
   });
 }
+if (mobNavOngoing) {
+  mobNavOngoing.addEventListener('click', () => {
+    openListingView('ongoing');
+  });
+}
+if (mobNavCompleted) {
+  mobNavCompleted.addEventListener('click', () => {
+    openListingView('completed');
+  });
+}
 if (mobNavAll) {
   mobNavAll.addEventListener('click', () => {
     showView('all-anime');
     loadAllAnime();
+  });
+}
+
+// Section Headers Click & "Lihat Semua" triggers
+if (btnSeeAllOngoing) {
+  btnSeeAllOngoing.addEventListener('click', () => {
+    openListingView('ongoing');
+  });
+}
+if (headerOngoingClick) {
+  headerOngoingClick.addEventListener('click', () => {
+    openListingView('ongoing');
+  });
+}
+
+if (btnSeeAllCompleted) {
+  btnSeeAllCompleted.addEventListener('click', () => {
+    openListingView('completed');
+  });
+}
+if (headerCompletedClick) {
+  headerCompletedClick.addEventListener('click', () => {
+    openListingView('completed');
+  });
+}
+
+// Listing Load More & Refresh
+if (btnLoadMore) {
+  btnLoadMore.addEventListener('click', () => {
+    if (listingCurrentPage < listingMaxPage) {
+      fetchListing(currentListingType, listingCurrentPage + 1, true);
+    }
+  });
+}
+
+if (btnRefreshListing) {
+  btnRefreshListing.addEventListener('click', () => {
+    showToast(`Memuat ulang seluruh anime ${currentListingType}...`);
+    openListingView(currentListingType, 1);
   });
 }
 if (mobNavSearch) {
