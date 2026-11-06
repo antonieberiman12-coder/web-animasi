@@ -3,16 +3,33 @@ const cheerio = require('cheerio');
 
 const BASE_URL = 'https://otakudesu.blog';
 
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache',
+  'Sec-Ch-Ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"Windows"',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+  'Upgrade-Insecure-Requests': '1',
+  'Referer': BASE_URL + '/'
+};
+
 const client = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Referer': BASE_URL + '/'
-  }
+  headers: BROWSER_HEADERS
 });
 
-// Cache for nonce
+// Cache for home page & nonce
+let cachedHome = null;
+let homeExpiry = 0;
 let cachedNonce = null;
 let nonceExpiry = 0;
 
@@ -66,6 +83,11 @@ async function getNonce(refererUrl) {
 
 // 1. Get Home Page (Ongoing & Latest Completed)
 async function getHome() {
+  const now = Date.now();
+  if (cachedHome && now < homeExpiry) {
+    return cachedHome;
+  }
+
   const res = await client.get('/');
   const $ = cheerio.load(res.data);
 
@@ -93,6 +115,11 @@ async function getHome() {
       }
     });
   });
+
+  if (ongoing.length > 0 || completed.length > 0) {
+    cachedHome = { ongoing, completed };
+    homeExpiry = now + (5 * 60 * 1000); // 5 minutes cache
+  }
 
   return { ongoing, completed };
 }
