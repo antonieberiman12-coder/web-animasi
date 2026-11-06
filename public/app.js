@@ -302,6 +302,19 @@ function playNativeStream(rawVideoUrl) {
 
   const proxyUrl = `${API_BASE}/video-stream?url=${encodeURIComponent(rawVideoUrl)}`;
   nativeVideo.src = proxyUrl;
+  
+  // Resilient fallback: If proxy fails or times out in cloud, try direct video URL
+  nativeVideo.onerror = () => {
+    if (nativeVideo.src !== rawVideoUrl) {
+      console.warn('Proxy video stream gagal, mencoba koneksi langsung ke sumber video...');
+      nativeVideo.src = rawVideoUrl;
+      nativeVideo.load();
+      nativeVideo.play().catch(e => {
+        console.log('Direct playback waiting for user click:', e);
+      });
+    }
+  };
+
   nativeVideo.load();
   nativeVideo.play().catch(e => {
     console.log('Auto-play prevented by browser, waiting for user tap:', e);

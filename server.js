@@ -9,7 +9,61 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+
+const publicPath = path.join(__dirname, 'public');
+app.use(express.static(publicPath));
+
+// Helper: SSRF & Safety Validator for outgoing proxy requests
+function isSafeUrl(urlString) {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    // Block localhost, link-local, and private IP address ranges
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '::1' ||
+      hostname === '[::1]' ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('169.254.') ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
+    ) {
+      return false;
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Helper: Ensure Anime API endpoints only query trusted Otakudesu domains
+function isAllowedAnimeUrl(urlString) {
+  if (!urlString || typeof urlString !== 'string') return false;
+  if (urlString.startsWith('/')) return true;
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    const hostname = parsed.hostname.toLowerCase();
+    return hostname.includes('otakudesu') || hostname.includes('desustream');
+  } catch (e) {
+    return false;
+  }
+}
+
+// 0. Health check endpoint (for cloud keep-alive / UptimeRobot)
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
 
 // 1. Home (Ongoing & Completed anime)
 app.get('/api/home', async (req, res) => {
@@ -43,6 +97,10 @@ app.get('/api/anime', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Query parameter url is required' });
   }
 
+  if (!isAllowedAnimeUrl(animeUrl)) {
+    return res.status(400).json({ success: false, error: 'Domain URL anime tidak diizinkan' });
+  }
+
   try {
     const data = await scraper.getAnimeDetail(animeUrl);
     res.json({ success: true, data });
@@ -56,6 +114,10 @@ app.get('/api/episode', async (req, res) => {
   const epUrl = req.query.url;
   if (!epUrl) {
     return res.status(400).json({ success: false, error: 'Query parameter url is required' });
+  }
+
+  if (!isAllowedAnimeUrl(epUrl)) {
+    return res.status(400).json({ success: false, error: 'Domain URL episode tidak diizinkan' });
   }
 
   try {
@@ -86,6 +148,10 @@ app.get('/api/mirror', async (req, res) => {
     return res.status(400).json({ success: false, error: 'url and content parameters required' });
   }
 
+  if (!isAllowedAnimeUrl(url)) {
+    return res.status(400).json({ success: false, error: 'Domain URL mirror tidak diizinkan' });
+  }
+
   try {
     const mirror = await scraper.resolveMirror(url, content);
     let directVideo = null;
@@ -110,6 +176,10 @@ app.get('/api/video-stream', async (req, res) => {
   const videoUrl = req.query.url;
   if (!videoUrl) {
     return res.status(400).send('Missing video URL');
+  }
+
+  if (!isSafeUrl(videoUrl)) {
+    return res.status(400).send('Invalid or forbidden video URL');
   }
 
   try {
@@ -169,6 +239,10 @@ app.get('/api/player-embed', async (req, res) => {
     return res.status(400).send('Missing player URL');
   }
 
+  if (!isSafeUrl(targetUrl)) {
+    return res.status(400).send('Invalid or forbidden player URL');
+  }
+
   try {
     const response = await axios.get(targetUrl, {
       headers: {
@@ -217,7 +291,10 @@ app.get('/api/player-embed', async (req, res) => {
 
 // Fallback route for SPA
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ success: false, error: 'Endpoint API tidak ditemukan' });
+  }
+  res.sendFile(path.join(publicPath, 'index.html'));
 });
 
 // Export for Vercel and start server locally
