@@ -9,6 +9,14 @@ let currentAnime = null;
 let currentEpisodes = [];
 let currentEpIndex = -1;
 let currentEpisodeUrl = '';
+let currentView = 'home';
+let previousView = 'home';
+
+// Catalog State
+let allAnimeGroups = [];
+let allAnimeTotal = 0;
+let isCatalogLoaded = false;
+let activeFilterLetter = 'ALL';
 
 // Watched episodes tracker in localStorage
 const WATCHED_KEY = 'otakustream_watched_episodes';
@@ -27,10 +35,36 @@ function markEpisodeWatched(url) {
   }
 }
 
+// XSS Sanitizer for scraped text (Jailbreak / Boundary Defense)
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // Elements
 const homeView = document.getElementById('home-view');
+const allAnimeView = document.getElementById('all-anime-view');
 const detailView = document.getElementById('detail-view');
 const playerView = document.getElementById('player-view');
+
+const navBtnHome = document.getElementById('nav-btn-home');
+const navBtnAll = document.getElementById('nav-btn-all');
+const mobNavHome = document.getElementById('mob-nav-home');
+const mobNavAll = document.getElementById('mob-nav-all');
+const mobNavSearch = document.getElementById('mob-nav-search');
+
+const catalogContent = document.getElementById('catalog-content');
+const alphabetNav = document.getElementById('alphabet-nav');
+const catalogFilterInput = document.getElementById('catalog-filter-input');
+const btnClearCatalogFilter = document.getElementById('btn-clear-catalog-filter');
+const btnRefreshCatalog = document.getElementById('btn-refresh-catalog');
+const catalogTotalText = document.getElementById('catalog-total-text');
+const headerCatalogBadge = document.getElementById('header-catalog-badge');
 
 const ongoingGrid = document.getElementById('ongoing-grid');
 const completedGrid = document.getElementById('completed-grid');
@@ -74,6 +108,11 @@ function showToast(message, duration = 3000) {
 
 // Navigation between views
 function showView(view) {
+  if (view !== 'detail' && view !== 'player') {
+    previousView = view;
+  }
+  currentView = view;
+
   // Pause any playing native video
   if (view !== 'player' && nativeVideo) {
     nativeVideo.pause();
@@ -84,8 +123,15 @@ function showView(view) {
   }
 
   homeView.classList.toggle('hidden', view !== 'home');
+  allAnimeView.classList.toggle('hidden', view !== 'all-anime');
   detailView.classList.toggle('hidden', view !== 'detail');
   playerView.classList.toggle('hidden', view !== 'player');
+
+  // Sync tab active states
+  if (navBtnHome) navBtnHome.classList.toggle('active', view === 'home');
+  if (navBtnAll) navBtnAll.classList.toggle('active', view === 'all-anime');
+  if (mobNavHome) mobNavHome.classList.toggle('active', view === 'home');
+  if (mobNavAll) mobNavAll.classList.toggle('active', view === 'all-anime');
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -104,6 +150,158 @@ async function loadHome() {
     ongoingGrid.innerHTML = `<p class="error-text">Gagal memuat anime ongoing. Sentuh brand untuk coba lagi.</p>`;
     completedGrid.innerHTML = `<p class="error-text">Gagal memuat anime tamat.</p>`;
   }
+}
+
+// 1b. Fetch & Render All Anime (A-Z Catalog ~1.900+ Titles)
+async function loadAllAnime(forceRefresh = false) {
+  if (isCatalogLoaded && !forceRefresh) {
+    renderAlphabetBar();
+    renderCatalogContent(allAnimeGroups, catalogFilterInput ? catalogFilterInput.value.trim() : '');
+    return;
+  }
+
+  catalogContent.innerHTML = `
+    <div class="catalog-loader">
+      <div class="spinner"></div>
+      <span>Mengambil seluruh 1.900+ koleksi anime dari Otakudesu...</span>
+    </div>
+  `;
+
+  try {
+    const res = await fetch(`${API_BASE}/anime-list`);
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+
+    allAnimeGroups = json.data.groups || [];
+    allAnimeTotal = json.data.totalCount || 0;
+    isCatalogLoaded = true;
+
+    // Update Badges
+    if (catalogTotalText) {
+      catalogTotalText.textContent = `${allAnimeTotal.toLocaleString('id-ID')} Judul`;
+    }
+    if (headerCatalogBadge) {
+      headerCatalogBadge.textContent = `${allAnimeTotal.toLocaleString('id-ID')}`;
+    }
+
+    renderAlphabetBar();
+    renderCatalogContent(allAnimeGroups, catalogFilterInput ? catalogFilterInput.value.trim() : '');
+  } catch (err) {
+    console.error('Error loading all anime list:', err);
+    catalogContent.innerHTML = `
+      <div class="catalog-loader" style="color:var(--danger)">
+        <p>Gagal memuat katalog anime: ${err.message}</p>
+        <button class="btn-primary" id="btn-retry-catalog" style="margin-top:12px;">Coba Muat Ulang</button>
+      </div>
+    `;
+    const btnRetry = document.getElementById('btn-retry-catalog');
+    if (btnRetry) {
+      btnRetry.addEventListener('click', () => loadAllAnime(true));
+    }
+  }
+}
+
+function renderAlphabetBar() {
+  if (!alphabetNav) return;
+  const letters = allAnimeGroups.map(g => g.letter);
+
+  let html = `<button class="alpha-chip ${activeFilterLetter === 'ALL' ? 'active' : ''}" data-letter="ALL" type="button">Semua</button>`;
+  letters.forEach(letter => {
+    const isActive = (activeFilterLetter === letter);
+    html += `<button class="alpha-chip ${isActive ? 'active' : ''}" data-letter="${letter}" type="button">${letter}</button>`;
+  });
+
+  alphabetNav.innerHTML = html;
+
+  alphabetNav.querySelectorAll('.alpha-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const letter = btn.getAttribute('data-letter');
+      activeFilterLetter = letter;
+
+      alphabetNav.querySelectorAll('.alpha-chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      if (letter === 'ALL') {
+        renderCatalogContent(allAnimeGroups, catalogFilterInput.value.trim());
+      } else {
+        const filtered = allAnimeGroups.filter(g => g.letter === letter);
+        renderCatalogContent(filtered, catalogFilterInput.value.trim());
+        const groupEl = document.getElementById(`group-${letter}`);
+        if (groupEl) {
+          groupEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    });
+  });
+}
+
+function renderCatalogContent(groups, keyword = '') {
+  if (!catalogContent) return;
+
+  if (!groups || groups.length === 0) {
+    catalogContent.innerHTML = `
+      <div class="catalog-loader">
+        <p>Tidak ada data anime dalam katalog.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const cleanKeyword = (keyword || '').toLowerCase().trim();
+  let html = '';
+  let matchCount = 0;
+
+  groups.forEach(group => {
+    let items = group.items || [];
+    if (cleanKeyword) {
+      items = items.filter(item => item.title.toLowerCase().includes(cleanKeyword));
+    }
+
+    if (items.length > 0) {
+      matchCount += items.length;
+      html += `
+        <div class="catalog-group" id="group-${group.letter}">
+          <div class="group-header">
+            <div class="group-title-wrap">
+              <span class="group-badge">${group.letter}</span>
+              <span class="group-title">Daftar Anime Huruf ${group.letter}</span>
+            </div>
+            <span class="group-count">${items.length} Anime</span>
+          </div>
+          <div class="group-anime-list">
+            ${items.map(item => `
+              <a class="catalog-item" data-url="${escapeHtml(item.link)}" href="javascript:void(0);" title="${escapeHtml(item.title)}">
+                <span class="catalog-bullet">▶</span>
+                <span class="catalog-text">${escapeHtml(item.title)}</span>
+              </a>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  if (cleanKeyword && matchCount === 0) {
+    catalogContent.innerHTML = `
+      <div class="catalog-loader">
+        <p>Tidak ditemukan anime dengan kata kunci "<strong>${escapeHtml(keyword)}</strong>".</p>
+      </div>
+    `;
+    return;
+  }
+
+  catalogContent.innerHTML = html;
+
+  // Attach click listener to open anime detail
+  catalogContent.querySelectorAll('.catalog-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      const url = item.getAttribute('data-url');
+      if (url) {
+        openAnimeDetail(url);
+      }
+    });
+  });
 }
 
 function renderAnimeCards(items, container, defaultBadge) {
@@ -383,15 +581,81 @@ btnBrand.addEventListener('click', () => {
   showView('home');
 });
 
+// Top Nav Tabs
+if (navBtnHome) {
+  navBtnHome.addEventListener('click', () => {
+    showView('home');
+  });
+}
+if (navBtnAll) {
+  navBtnAll.addEventListener('click', () => {
+    showView('all-anime');
+    loadAllAnime();
+  });
+}
+
+// Mobile Bottom Nav Tabs
+if (mobNavHome) {
+  mobNavHome.addEventListener('click', () => {
+    showView('home');
+  });
+}
+if (mobNavAll) {
+  mobNavAll.addEventListener('click', () => {
+    showView('all-anime');
+    loadAllAnime();
+  });
+}
+if (mobNavSearch) {
+  mobNavSearch.addEventListener('click', () => {
+    searchWrap.classList.remove('hidden');
+    searchInput.focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
+// Catalog Filter Input & Refresh
+if (btnRefreshCatalog) {
+  btnRefreshCatalog.addEventListener('click', () => {
+    showToast('Memuat ulang seluruh daftar anime...');
+    loadAllAnime(true);
+  });
+}
+
+if (catalogFilterInput) {
+  catalogFilterInput.addEventListener('input', () => {
+    const kw = catalogFilterInput.value.trim();
+    if (btnClearCatalogFilter) {
+      btnClearCatalogFilter.classList.toggle('hidden', kw.length === 0);
+    }
+    const currentGroups = (activeFilterLetter === 'ALL')
+      ? allAnimeGroups
+      : allAnimeGroups.filter(g => g.letter === activeFilterLetter);
+    renderCatalogContent(currentGroups, kw);
+  });
+}
+
+if (btnClearCatalogFilter) {
+  btnClearCatalogFilter.addEventListener('click', () => {
+    catalogFilterInput.value = '';
+    btnClearCatalogFilter.classList.add('hidden');
+    const currentGroups = (activeFilterLetter === 'ALL')
+      ? allAnimeGroups
+      : allAnimeGroups.filter(g => g.letter === activeFilterLetter);
+    renderCatalogContent(currentGroups, '');
+    catalogFilterInput.focus();
+  });
+}
+
 btnDetailBack.addEventListener('click', () => {
-  showView('home');
+  showView(previousView || 'home');
 });
 
 btnPlayerBack.addEventListener('click', () => {
   if (currentAnime) {
     showView('detail');
   } else {
-    showView('home');
+    showView(previousView || 'home');
   }
 });
 

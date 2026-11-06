@@ -26,8 +26,22 @@
           <span class="brand-badge">Bebas Iklan</span>
         </div>
       </div>
+
+      <!-- Main Navigation Tabs -->
+      <nav class="header-nav">
+        <button id="nav-btn-home" class="nav-tab active" type="button">
+          <span class="tab-icon">🏠</span>
+          <span class="tab-label">Beranda</span>
+        </button>
+        <button id="nav-btn-all" class="nav-tab" type="button">
+          <span class="tab-icon">📚</span>
+          <span class="tab-label">Semua Anime (A-Z)</span>
+          <span class="badge-count" id="header-catalog-badge">1.900+</span>
+        </button>
+      </nav>
+
       <div class="header-actions">
-        <button id="btn-toggle-search" class="icon-btn" aria-label="Cari Anime">
+        <button id="btn-toggle-search" class="icon-btn" aria-label="Cari Anime" title="Pencarian">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -193,15 +207,74 @@
       </div>
     </section>
 
+    <!-- All Anime A-Z Catalog View -->
+    <section id="all-anime-view" class="view-section hidden">
+      <div class="catalog-header-card">
+        <div class="catalog-header-top">
+          <div>
+            <div class="catalog-badge">Katalog Resmi Lengkap</div>
+            <h2 class="catalog-title">Semua Anime (A-Z)</h2>
+            <p class="catalog-desc">Koleksi lengkap <strong id="catalog-total-text">1.901+</strong> anime seperti di Otakudesu. Bebas iklan, tanpa redirect, dan langsung putar di pemutar bersih.</p>
+          </div>
+          <button id="btn-refresh-catalog" class="btn-refresh" type="button" title="Segarkan daftar">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+            Segarkan
+          </button>
+        </div>
+
+        <!-- Live Instant Filter Input -->
+        <div class="catalog-search-box">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="catalog-filter-input" placeholder="Saring instan 1.900+ anime berdasarkan judul (mis: Solo Leveling, Naruto, Bleach)..." autocomplete="off">
+          <button type="button" id="btn-clear-catalog-filter" class="search-clear hidden">&times;</button>
+        </div>
+
+        <!-- Fast Alphabet Jump Bar -->
+        <div class="alphabet-nav-wrapper">
+          <span class="alphabet-label">Lompat Abjad:</span>
+          <div class="alphabet-nav" id="alphabet-nav">
+            <!-- Rendered via JS: #, A, B, C, ... Z -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Catalog Content Groups -->
+      <div id="catalog-content" class="catalog-content">
+        <div class="catalog-loader">
+          <div class="spinner"></div>
+          <span>Memuat seluruh katalog 1.900+ anime Otakudesu...</span>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- Global Toast Notification -->
   <div id="toast" class="toast hidden"></div>
 
+  <!-- Mobile Bottom Tab Bar (App-like UX) -->
+  <nav class="mobile-bottom-nav">
+    <button id="mob-nav-home" class="mob-tab active" type="button">
+      <span class="mob-tab-icon">🏠</span>
+      <span class="mob-tab-label">Beranda</span>
+    </button>
+    <button id="mob-nav-all" class="mob-tab" type="button">
+      <span class="mob-tab-icon">📚</span>
+      <span class="mob-tab-label">Semua Anime</span>
+    </button>
+    <button id="mob-nav-search" class="mob-tab" type="button">
+      <span class="mob-tab-icon">🔍</span>
+      <span class="mob-tab-label">Cari</span>
+    </button>
+  </nav>
+
   <!-- Bottom Quick Bar for Mobile -->
   <footer class="mobile-footer">
     <div class="footer-note">
-      <span>OtakuStream &bull; Anti-Redirect Engine &bull; Desain Responsif Android</span>
+      <span>OtakuStream &bull; Seluruh Koleksi Anime Otakudesu &bull; Zero Ads & Anti-Redirect</span>
     </div>
   </footer>
 

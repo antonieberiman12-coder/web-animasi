@@ -290,11 +290,85 @@ async function extractDirectVideo(iframeUrl) {
   return null;
 }
 
+// Cache for all anime list
+let cachedAllAnime = null;
+let allAnimeExpiry = 0;
+
+// 7. Get All Anime List (A-Z) from /anime-list/
+async function getAllAnimeList() {
+  const now = Date.now();
+  if (cachedAllAnime && now < allAnimeExpiry) {
+    return cachedAllAnime;
+  }
+
+  const res = await client.get('/anime-list/');
+  const $ = cheerio.load(res.data);
+
+  const groups = [];
+  let totalCount = 0;
+
+  $('.bariskelom').each((_, el) => {
+    let letter = $(el).find('.barispenz a').text().trim() || $(el).find('.barispenz').text().trim();
+    if (!letter) {
+      letter = $(el).find('a[name]').attr('name') || '';
+    }
+    letter = letter.trim().toUpperCase();
+
+    const items = [];
+    $(el).find('.jdlbar a').each((__, a) => {
+      const rawTitle = $(a).text().trim().replace(/<[^>]*>/g, '').trim();
+      const link = $(a).attr('href');
+      if (rawTitle && link && link.includes('/anime/')) {
+        items.push({
+          title: rawTitle,
+          link: link
+        });
+        totalCount++;
+      }
+    });
+
+    if (letter && items.length > 0) {
+      // Clean and normalize accented character (e.g. Ü -> U)
+      let cleanLetter = letter.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+      if (!cleanLetter || !/^[A-Z0-9#]/.test(cleanLetter)) {
+        const firstChar = items[0].title.charAt(0).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        cleanLetter = /^[A-Z]/.test(firstChar) ? firstChar : '#';
+      }
+
+      const groupKey = /^[0-9#]/.test(cleanLetter) ? '#' : cleanLetter;
+      const existing = groups.find(g => g.letter === groupKey);
+      if (existing) {
+        existing.items.push(...items);
+      } else {
+        groups.push({
+          letter: groupKey,
+          items
+        });
+      }
+    }
+  });
+
+  // Sort groups: '#' first, then A-Z
+  groups.sort((a, b) => {
+    if (a.letter === '#') return -1;
+    if (b.letter === '#') return 1;
+    return a.letter.localeCompare(b.letter);
+  });
+
+  if (totalCount > 0) {
+    cachedAllAnime = { groups, totalCount };
+    allAnimeExpiry = now + (60 * 60 * 1000); // 1 hour cache
+  }
+
+  return { groups, totalCount };
+}
+
 module.exports = {
   getHome,
   searchAnime,
   getAnimeDetail,
   getEpisodeDetail,
   resolveMirror,
-  extractDirectVideo
+  extractDirectVideo,
+  getAllAnimeList
 };

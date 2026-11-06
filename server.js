@@ -75,6 +75,16 @@ app.get('/api/home', async (req, res) => {
   }
 });
 
+// 1b. Full Anime List A-Z (Semua anime Otakudesu)
+app.get('/api/anime-list', async (req, res) => {
+  try {
+    const data = await scraper.getAllAnimeList();
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 2. Search Anime
 app.get('/api/search', async (req, res) => {
   const query = req.query.q;
