@@ -203,7 +203,7 @@ app.get('/api/mirror', async (req, res) => {
   }
 });
 
-// 6. Direct Video Stream Proxy (with Range header support for Android)
+// 6. Direct Video Stream Proxy (with Range header support for Android & Web)
 app.get('/api/video-stream', async (req, res) => {
   const videoUrl = req.query.url;
   if (!videoUrl) {
@@ -215,8 +215,17 @@ app.get('/api/video-stream', async (req, res) => {
   }
 
   try {
+    // Determine required referer for streaming provider (GoogleVideo, Desustream, Blogger)
+    let streamReferer = 'https://otakudesu.blog/';
+    if (videoUrl.includes('desustream.net') || videoUrl.includes('sn-ojnpo5')) {
+      streamReferer = 'https://desustream.net/';
+    } else if (videoUrl.includes('blogger.com') || videoUrl.includes('googlevideo.com')) {
+      streamReferer = 'https://www.blogger.com/';
+    }
+
     const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+      'Referer': streamReferer
     };
 
     if (req.headers.range) {
@@ -264,7 +273,7 @@ app.get('/api/video-stream', async (req, res) => {
   }
 });
 
-// 7. Sandboxed Safe Player Embed Proxy (strips CSP & injects anti-redirect shields)
+// 7. Sandboxed Safe Player Embed Proxy (strips CSP & injects base href + anti-redirect shields)
 app.get('/api/player-embed', async (req, res) => {
   const targetUrl = req.query.url;
   if (!targetUrl) {
@@ -276,15 +285,21 @@ app.get('/api/player-embed', async (req, res) => {
   }
 
   try {
+    const parsedTarget = new URL(targetUrl);
+    const targetOrigin = parsedTarget.origin;
+
     const response = await axios.get(targetUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
         'Referer': 'https://otakudesu.blog/'
       },
       timeout: 10000
     });
 
-    let html = response.data;
+    let html = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+
+    // Inject base href tag so relative scripts/styles load properly from their provider CDN
+    const baseTag = `<base href="${targetOrigin}/">`;
 
     // Inject Anti-Redirect & Anti-Popup Neutralizer Script
     const neutralizer = `
@@ -297,7 +312,7 @@ app.get('/api/player-embed', async (req, res) => {
         document.addEventListener('DOMContentLoaded', function() {
           const links = document.querySelectorAll('a[target="_blank"]');
           links.forEach(l => {
-            if (l.href && !l.href.includes('desustream') && !l.href.includes('otakudesu')) {
+            if (l.href && !l.href.includes('desustream') && !l.href.includes('otakudesu') && !l.href.includes('mega.nz')) {
               l.style.display = 'none';
               l.onclick = function(e) { e.preventDefault(); e.stopPropagation(); return false; };
             }
@@ -307,9 +322,9 @@ app.get('/api/player-embed', async (req, res) => {
     `;
 
     if (html.includes('<head>')) {
-      html = html.replace('<head>', '<head>' + neutralizer);
+      html = html.replace('<head>', '<head>' + baseTag + neutralizer);
     } else {
-      html = neutralizer + html;
+      html = baseTag + neutralizer + html;
     }
 
     res.removeHeader('X-Frame-Options');

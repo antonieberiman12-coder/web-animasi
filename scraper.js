@@ -225,13 +225,31 @@ async function getEpisodeDetail(url) {
     }
   });
 
+  // Download qualities & links (fallback jika stream tidak dapat diputar)
+  const downloads = [];
+  $('.download ul li').each((_, el) => {
+    const quality = $(el).find('strong').text().trim();
+    const links = [];
+    $(el).find('a').each((__, a) => {
+      const host = $(a).text().trim();
+      const href = $(a).attr('href');
+      if (host && href) {
+        links.push({ host, link: href });
+      }
+    });
+    if (quality && links.length > 0) {
+      downloads.push({ quality, links });
+    }
+  });
+
   return {
     title,
     defaultIframe,
     prevEp,
     nextEp,
     allEp,
-    mirrors
+    mirrors,
+    downloads
   };
 }
 
@@ -268,21 +286,69 @@ async function resolveMirror(url, dataContent) {
   throw new Error('No mirror data returned');
 }
 
-// 6. Extract Direct Video MP4 from Desustream / Stream URL
+// 6. Extract Direct Video MP4 from Blogger / Desustream / Stream URL
 async function extractDirectVideo(iframeUrl) {
   if (!iframeUrl) return null;
 
   try {
     const res = await client.get(iframeUrl, {
       headers: {
-        'Referer': BASE_URL + '/'
-      }
+        'Referer': BASE_URL + '/',
+        'User-Agent': BROWSER_HEADERS['User-Agent']
+      },
+      timeout: 10000
     });
 
-    // Check for direct <source src="..."> or video src
-    const match = res.data.match(/<source[^>]+src="([^">]+)"/i) || res.data.match(/<video[^>]+src="([^">]+)"/i);
-    if (match && match[1]) {
-      return match[1].replace(/&amp;/g, '&');
+    const html = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
+    let candidate = null;
+
+    // 1. Check for Blogger / GoogleVideo stream URL (AF_initDataCallback / data-p)
+    const gvMatch = html.match(/https:[^"&]+googlevideo\.com\/videoplayback[^"&]+/i);
+    if (gvMatch && gvMatch[0]) {
+      candidate = gvMatch[0]
+        .replace(/\\u0026/g, '&')
+        .replace(/\\u003d/g, '=')
+        .replace(/&amp;/g, '&');
+    }
+
+    // 2. Check for direct <source src="..."> or <video src="...">
+    if (!candidate) {
+      const srcMatch = html.match(/<source[^>]+src="([^">]+)"/i) || html.match(/<video[^>]+src="([^">]+)"/i);
+      if (srcMatch && srcMatch[1]) {
+        candidate = srcMatch[1].replace(/&amp;/g, '&');
+      }
+    }
+
+    // 3. Check for file: "https://...mp4" format
+    if (!candidate) {
+      const fileMatch = html.match(/file\s*:\s*["'](https?:\/\/[^"']+\.mp4[^"']*)["']/i);
+      if (fileMatch && fileMatch[1]) {
+        candidate = fileMatch[1].replace(/&amp;/g, '&');
+      }
+    }
+
+    if (candidate) {
+      // Validate candidate stream with quick HEAD check
+      try {
+        const streamReferer = iframeUrl.includes('desustream')
+          ? 'https://desustream.net/'
+          : (iframeUrl.includes('blogger.com') ? 'https://www.blogger.com/' : BASE_URL + '/');
+
+        const headCheck = await axios.head(candidate, {
+          headers: {
+            'User-Agent': BROWSER_HEADERS['User-Agent'],
+            'Referer': streamReferer
+          },
+          timeout: 6000
+        });
+
+        if (headCheck.status >= 200 && headCheck.status < 400) {
+          return candidate;
+        }
+      } catch (headErr) {
+        console.warn('Candidate direct video failed HEAD check:', headErr.response ? headErr.response.status : headErr.message);
+        return null;
+      }
     }
   } catch (err) {
     console.error('Error extracting direct video from iframe:', err.message);

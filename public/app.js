@@ -118,6 +118,8 @@ const mirrorList = document.getElementById('mirror-list');
 const btnPrevEp = document.getElementById('btn-prev-ep');
 const btnNextEp = document.getElementById('btn-next-ep');
 const btnPlayerBack = document.getElementById('btn-player-back');
+const downloadSection = document.getElementById('download-section');
+const downloadList = document.getElementById('download-list');
 
 const btnBrand = document.getElementById('btn-brand');
 const btnPlayFna = document.getElementById('btn-play-fna');
@@ -596,13 +598,16 @@ async function playEpisodeByIndex(idx) {
     // Render Mirrors / Qualities
     renderMirrors(epData.mirrors || [], epData.defaultIframe);
 
+    // Render Downloads / Backups
+    renderDownloads(epData.downloads || []);
+
     // Setup Video Player: Prefer Direct Video MP4 via Video-Stream Proxy
     if (epData.directVideo) {
-      playNativeStream(epData.directVideo);
+      playNativeStream(epData.directVideo, epData.defaultIframe);
     } else if (epData.defaultIframe) {
       playSandboxedIframe(epData.defaultIframe);
     } else {
-      videoLoader.innerHTML = '<span style="color:var(--danger)">Video stream tidak ditemukan pada episode ini.</span>';
+      videoLoader.innerHTML = '<span style="color:var(--danger)">Video stream tidak ditemukan pada episode ini. Silakan gunakan tautan unduh di bawah.</span>';
     }
 
   } catch (err) {
@@ -611,7 +616,7 @@ async function playEpisodeByIndex(idx) {
   }
 }
 
-function playNativeStream(rawVideoUrl) {
+function playNativeStream(rawVideoUrl, fallbackIframe = '') {
   videoLoader.classList.add('hidden');
   sandboxedIframe.classList.add('hidden');
   nativeVideo.classList.remove('hidden');
@@ -619,7 +624,7 @@ function playNativeStream(rawVideoUrl) {
   const proxyUrl = `${API_BASE}/video-stream?url=${encodeURIComponent(rawVideoUrl)}`;
   nativeVideo.src = proxyUrl;
   
-  // Resilient fallback: If proxy fails or times out in cloud, try direct video URL
+  // Resilient fallback: If proxy fails or times out in cloud, try direct video URL or fallback iframe
   nativeVideo.onerror = () => {
     if (nativeVideo.src !== rawVideoUrl) {
       console.warn('Proxy video stream gagal, mencoba koneksi langsung ke sumber video...');
@@ -628,6 +633,11 @@ function playNativeStream(rawVideoUrl) {
       nativeVideo.play().catch(e => {
         console.log('Direct playback waiting for user click:', e);
       });
+    } else if (fallbackIframe) {
+      console.warn('Direct stream gagal, beralih ke mode sandboxed iframe...');
+      playSandboxedIframe(fallbackIframe);
+    } else {
+      showToast('⚠️ Gagal memutar direct stream. Silakan gunakan mirror atau tautan unduh di bawah.');
     }
   };
 
@@ -644,10 +654,16 @@ function playSandboxedIframe(iframeSrc) {
   nativeVideo.src = '';
   sandboxedIframe.classList.remove('hidden');
 
-  // Load through player-embed proxy to strip CSP & neutralize redirect scripts
-  const proxyEmbedUrl = `${API_BASE}/player-embed?url=${encodeURIComponent(iframeSrc)}`;
-  sandboxedIframe.src = proxyEmbedUrl;
-  showToast('🛡️ Memutar via Sandboxed Embed (Anti-Redirect)');
+  // If mega.nz embed, load directly so secure storage and decryption worker run natively
+  if (iframeSrc.includes('mega.nz')) {
+    sandboxedIframe.src = iframeSrc;
+    showToast('🛡️ Memutar via Mega Embed');
+  } else {
+    // Load through player-embed proxy to strip CSP & neutralize redirect scripts
+    const proxyEmbedUrl = `${API_BASE}/player-embed?url=${encodeURIComponent(iframeSrc)}`;
+    sandboxedIframe.src = proxyEmbedUrl;
+    showToast('🛡️ Memutar via Sandboxed Embed (Anti-Redirect)');
+  }
 }
 
 function renderMirrors(mirrors, defaultIframe) {
@@ -680,7 +696,7 @@ function renderMirrors(mirrors, defaultIframe) {
         const json = await res.json();
         if (json.success && json.data) {
           if (json.data.directVideo) {
-            playNativeStream(json.data.directVideo);
+            playNativeStream(json.data.directVideo, json.data.iframeSrc);
           } else if (json.data.iframeSrc) {
             playSandboxedIframe(json.data.iframeSrc);
           }
@@ -691,6 +707,34 @@ function renderMirrors(mirrors, defaultIframe) {
       }
     });
     mirrorList.appendChild(btn);
+  });
+}
+
+function renderDownloads(downloads) {
+  if (!downloadSection || !downloadList) return;
+
+  if (!downloads || downloads.length === 0) {
+    downloadSection.classList.add('hidden');
+    downloadList.innerHTML = '';
+    return;
+  }
+
+  downloadSection.classList.remove('hidden');
+  downloadList.innerHTML = '';
+
+  downloads.forEach(group => {
+    (group.links || []).forEach(item => {
+      const a = document.createElement('a');
+      a.className = 'chip-server';
+      a.style.display = 'inline-flex';
+      a.style.alignItems = 'center';
+      a.style.textDecoration = 'none';
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.href = item.link;
+      a.innerHTML = `<span>💾 ${escapeHtml(group.quality)} (${escapeHtml(item.host)})</span>`;
+      downloadList.appendChild(a);
+    });
   });
 }
 

@@ -105,7 +105,7 @@
 
           <!-- Sandboxed Iframe Fallback -->
           <iframe id="sandboxed-iframe" class="video-iframe hidden"
-            sandbox="allow-scripts allow-same-origin allow-forms"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
             allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
             allowfullscreen>
           </iframe>
@@ -116,6 +116,14 @@
           <div class="server-selector">
             <span class="label">Pilihan Kualitas / Mirror:</span>
             <div id="mirror-list" class="mirror-chips">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- Download / Backup Links Section -->
+          <div id="download-section" class="server-selector hidden" style="margin-top: 14px;">
+            <span class="label">⬇ Tautan Unduh / Cadangan (Mp4 / MKV):</span>
+            <div id="download-list" class="mirror-chips">
               <!-- Rendered via JS -->
             </div>
           </div>
